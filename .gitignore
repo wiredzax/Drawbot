@@ -1,0 +1,26 @@
+# .gitignore (in /Drawbot/)
+
+# Sensitive files
+.env
+user_preferences.json
+guild_stats.db
+admins.json
+discord_bot.log
+stats.json  # Keep if still present, remove if fully migrated
+
+# Virtual environment
+drawbot/
+
+
+# Python cache files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Generated outputs (adjust if your bot uses a different folder)
+generated_images/
+
+# IDE-specific files (optional, add based on your tools)
+.vscode/
+.idea/

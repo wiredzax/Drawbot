@@ -1,0 +1,7 @@
+forest
+desert
+space
+ocean
+mountain
+city
+cave

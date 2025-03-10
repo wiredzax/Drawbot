@@ -1,0 +1,19 @@
+3:
+  class_type: LoadImage
+  inputs:
+    image: ""  # Filled by bot with input filename
+    type: input
+4:
+  class_type: UpscaleModelLoader
+  inputs:
+    model_name: RealESRGAN_x2.pth  # Changed to 2x upscaling
+5:
+  class_type: ImageUpscaleWithModel
+  inputs:
+    upscale_model: ["4", 0]
+    image: ["3", 0]
+6:
+  class_type: SaveImage
+  inputs:
+    images: ["5", 0]
+    filename_prefix: upscale

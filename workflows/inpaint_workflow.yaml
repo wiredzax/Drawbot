@@ -1,0 +1,55 @@
+3:
+  class_type: LoadImage
+  inputs:
+    image: ""  # Input image filename
+    type: input
+4:
+  class_type: LoadImageMask
+  inputs:
+    image: ""  # Mask filename (black = keep, white = edit)
+    type: input
+    channel: "red"  # Use the red channel (or "alpha" if your mask uses transparency)
+5:
+  class_type: CheckpointLoaderSimple
+  inputs:
+    ckpt_name: uncannyValley_ilxl10Noob.safetensors  # Default, overridden by bot
+6:
+  class_type: CLIPTextEncode
+  inputs:
+    text: ""  # Positive prompt
+    clip: ["5", 1]
+7:
+  class_type: CLIPTextEncode
+  inputs:
+    text: ""  # Negative prompt
+    clip: ["5", 1]
+8:
+  class_type: VAEEncodeForInpaint
+  inputs:
+    pixels: ["3", 0]
+    vae: ["5", 2]
+    mask: ["4", 0]
+    grow_mask_by: 0  # No expansion; set to 5 or 10 for slight blending if desired
+9:
+  class_type: KSampler
+  inputs:
+    seed: 0
+    steps: 35
+    cfg: 4.0
+    sampler_name: dpmpp_2m_sde
+    scheduler: exponential
+    denoise: 0.7
+    model: ["5", 0]
+    positive: ["6", 0]
+    negative: ["7", 0]
+    latent_image: ["8", 0]
+10:
+  class_type: VAEDecode
+  inputs:
+    samples: ["9", 0]
+    vae: ["5", 2]
+11:
+  class_type: SaveImage
+  inputs:
+    images: ["10", 0]
+    filename_prefix: inpaint

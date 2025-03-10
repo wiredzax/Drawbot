@@ -1,0 +1,29 @@
+3:
+  class_type: LoadImage
+  inputs:
+    image: ""  # Filled by bot
+    type: input
+4:
+  class_type: DownloadAndLoadDepthAnythingV2Model
+  inputs:
+    model: "depth_anything_v2_vitb_fp32.safetensors"
+5:
+  class_type: DepthAnything_V2
+  inputs:
+    da_model: ["4", 0]
+    images: ["3", 0]
+6:
+  class_type: SaveImage
+  inputs:
+    images: ["5", 0]
+    filename_prefix: "depth"
+7:
+  class_type: ColorizeDepthmap
+  inputs:
+    image: ["5", 0]
+    colorize_method: "Spectral"
+8:
+  class_type: SaveImage
+  inputs:
+    images: ["7", 0]
+    filename_prefix: "depth_colorized"

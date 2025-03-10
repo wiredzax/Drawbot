@@ -1,0 +1,7 @@
+dragon
+cat
+warrior
+spaceship
+castle
+robot
+wizard
