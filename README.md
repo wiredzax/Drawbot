@@ -4,8 +4,8 @@ Readme.md
 Drawbot is a Discord bot that generates images using a ComfyUI API. It supports text-to-image generation, image-to-image transformations, depth map creation, collaborative canvas editing, and user stats tracking across guilds. This is a framework for you to customize with your own ComfyUI supported models and workflows—see the configuration section below!
 
 ## Features
-- **Text-to-Image**: Generate images from text prompts with `!draw`.
-- **Image-to-Image**: Transform images with `!img2img`, `!upscale`, or `!inpaint`.
+- **Text-to-Image**: Generate images from text prompts with `draw`.
+- **Image-to-Image**: Transform images with `img2img`, `!upscale`, or `!inpaint`.
 - **Depth Maps**: Create depth maps from images with `!depth`.
 - **Collaborative Canvas**: Edit a shared canvas with `!startcanvas` and `!addcanvas`.
 - **Stats & Leaderboards**: Track usage with `!stats` and `!leaderboard`.
@@ -63,7 +63,8 @@ AVAILABLE_MODELS = {
 }
 ```
    - Syntax: 
-   Keys are model names users can specify (e.g., !draw a cat model:your_model_name), and values are the exact filenames in your ComfyUI models/checkpoints/ directory.
+   Keys are model names users can specify (e.g., `draw a cat model:your_model_name`), and values are the exact filenames in your ComfyUI models/checkpoints/ directory.
+   I have supplied some mode names that can before online in the "available_models.py file, if you do not have those files please add your own.
 
 Update config/default_model.py to set the default model (must match a key from AVAILABLE_MODELS):
 
@@ -83,36 +84,36 @@ DEFAULT_MODEL = "your_model_name"
 ## Usage
 Once the bot is running and added to your Discord server, try these commands:
 
-**!draw <prompt>**: Generate an image from a text prompt.  
-- Example: !draw a cat  
-- With model: !draw a cat model:your_model_name
-- With parameters: !draw a cat steps:50 cfg:7.5
+**`draw <prompt>`**: Generate an image from a text prompt.  
+- Example: draw a cat  
+- With model: draw a cat model:your_model_name
+- With parameters: draw a cat steps:50 cfg:7.5
 
-**!img2img <prompt>**: Transform an attached or replied-to image.  
-- Example: Attach an image and type !img2img a futuristic city  
+**`img2img`**: Transform an attached or replied-to image.  
+- Example: Simply upload an image and `<prompt>` as a message or reply to an image with `<prompt>` ex. a futuristic city to make an image  
 
-**!upscale**: Upscale an attached or replied-to image.  
+**`!upscale`**: Upscale an attached or replied-to image.  
  - Example: Reply to an image with !upscale  
 
-**!inpaint <prompt>**: Edit an image with a mask (white areas edited).  
+**`!inpaint <prompt>`**: Edit an image with a mask (white areas edited).  
  - Example: Reply to an image, attach a mask, and type !inpaint a dragon  
 
-**!depth**: Generate a depth map from an attached or replied-to image.  
+**`!depth`**: Generate a depth map from an attached or replied-to image.  
  - Example: Attach an image and type !depth colorize:yes method:spectral  
 
-**!startcanvas <prompt>**: Start a collaborative canvas.  
+**`!startcanvas <prompt>`**: Start a collaborative canvas.  
  - Example: !startcanvas a forest  
 
-**!addcanvas <prompt>**: Add to the canvas with a mask.  
+**`!addcanvas <prompt>`**: Add to the canvas with a mask.  
  - Example: Attach a mask and type !addcanvas a river  
 
-**!showcanvas**: Display the current canvas.  
+**`!showcanvas`**: Display the current canvas.  
 
-**!stats**: View your generation stats (images, time, etc.).  
+**`!stats`**: View your generation stats (images, time, etc.).  
 
-**!leaderboard**: See the top creators in your guild.  
+**`!leaderboard`**: See the top creators in your guild.  
 
-**!models**: List available model names from AVAILABLE_MODELS.  
+**`!models`**: List available model names from AVAILABLE_MODELS.  
 
 - **Admin Commands**: Guild owners or the bot owner can run these initially:
 
@@ -142,6 +143,10 @@ Once the bot is running and added to your Discord server, try these commands:
 **VRAM Monitoring**: The bot checks GPU VRAM usage (requires gputil) and aborts if it exceeds VRAM_THRESHOLD_GB.
 
 **Stats**: Guild-specific stats are stored in guild_stats.db (excluded from the repo).
+
+**Guild limit**: This bot is not coded in such a way that it will not work with Discord's API limits for bots. Discord does limit the bot intents after you reach their "max guild" mark, please refer to Discord's Developer portal for more information. 
+Other aspects of how the bot saves stats and prefrences will also need to be changed if you are reaching the limits of what the code can do. 
+SQLite3 is used to store stats on images prompted, total generation time, etc. This can be a bottleneck.  
 
 ## Contributing
 
