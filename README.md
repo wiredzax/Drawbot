@@ -16,6 +16,7 @@ Drawbot is a Discord bot that generates images using a ComfyUI API. It supports 
 - **ComfyUI Server**: A running instance of [ComfyUI](https://github.com/comfyanonymous/ComfyUI) for image generation.
 - **Discord Bot Token**: Obtain from the [Discord Developer Portal](https://discord.com/developers/applications).
 - **Git**: For cloning the repository.
+- **Other**: requirements.txt Is included for all other dependencies needed for the bot.
 
 ## Installation
 Follow these steps to set up Drawbot on your system:
@@ -64,7 +65,8 @@ AVAILABLE_MODELS = {
 ```
    - Syntax: 
    Keys are model names users can specify (e.g., `draw a cat model:your_model_name`), and values are the exact filenames in your ComfyUI models/checkpoints/ directory.
-   I have supplied some mode names that can before online in the "available_models.py file, if you do not have those files please add your own.
+   
+   I have supplied some model names that can be found online in the "available_models.py file, if you do not have those files please add your own.
 
 Update config/default_model.py to set the default model (must match a key from AVAILABLE_MODELS):
 
