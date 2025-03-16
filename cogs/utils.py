@@ -23,8 +23,8 @@ logger.setLevel(logging.DEBUG)
 load_dotenv()
 
 # --- Constants ---
-PROMPT_PREFIX = "SimplePositiveXLv2"
-DEFAULT_NEGATIVE_PROMPT = "DeepNegative_xl_v1"
+PROMPT_PREFIX = "embedding:SimplePositiveXLv2,"
+DEFAULT_NEGATIVE_PROMPT = "embedding:DeepNegative_xl_v1"
 COMFYUI_API_URL = os.getenv("COMFYUI_API_URL", "http://127.0.0.1:8188")
 API_TIMEOUT = int(os.getenv("API_TIMEOUT", 120))
 RATE_LIMIT_REQUESTS = 5
