@@ -1,24 +1,18 @@
-# cogs/txt2img.py
 import discord
 from discord.ext import commands
 import aiohttp
 import logging
-import os
 from io import BytesIO
-from PIL import Image
 from typing import Optional, List, Tuple, Dict
 from datetime import datetime, timedelta
 import asyncio
 import random
-from .utils import Cache, parse_prompt, validate_resolution, check_vram_usage, submit_comfyui_workflow, fetch_comfyui_outputs, monitor_vram_during_task, handle_reactions, PROMPT_PREFIX, DEFAULT_NEGATIVE_PROMPT, API_TIMEOUT, MAX_BATCH_SIZE, STATIC_WIDTH, STATIC_HEIGHT
+from .utils import Cache, parse_prompt, validate_resolution, check_vram_usage, submit_comfyui_workflow, fetch_comfyui_outputs, handle_reactions, PROMPT_PREFIX, DEFAULT_NEGATIVE_PROMPT, API_TIMEOUT, MAX_BATCH_SIZE, STATIC_WIDTH, STATIC_HEIGHT
 from config.default_model import DEFAULT_MODEL
 from config.available_models import AVAILABLE_MODELS
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
-
-REACTION_EMOJIS = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣']
-REACTION_TIMEOUT = 120
 
 class Txt2ImgCog(commands.Cog):
     def __init__(self, bot):
@@ -97,19 +91,6 @@ class Txt2ImgCog(commands.Cog):
             logger.warning("No images generated or generation timed out")
         return images, datetime.now() - start_time if images else None
 
-    @commands.Cog.listener()
-    async def on_message(self, message):
-        if message.author == self.bot.user or not message.content.lower().startswith("draw "):
-            return
-        full_prompt_text = message.content[5:].strip()
-        if not full_prompt_text:
-            await message.channel.send("Please provide a prompt after 'draw'. Example: `draw a cat`")
-            return
-        positive_prompt, negative_prompt_user, params = parse_prompt(self.bot, full_prompt_text)
-        negative_prompt = negative_prompt_user if negative_prompt_user is not None else DEFAULT_NEGATIVE_PROMPT
-        logger.info(f"User {message.author} requested: prompt='{positive_prompt}', negative_prompt='{negative_prompt}', params={params}")
-        await self.handle_generation_request(message.channel, message.author, positive_prompt, negative_prompt, params)
-
     async def handle_generation_request(self, channel, author, prompt: str, negative_prompt: str, params: Dict[str, str]):
         if not check_vram_usage():
             await channel.send("GPU VRAM usage too high. Try again later.")
@@ -124,15 +105,63 @@ class Txt2ImgCog(commands.Cog):
                 if stats_cog:
                     stats_cog.update_user_stats(guild_id, author.id, author.display_name, images=len(output_bytes_list), total_time=duration.total_seconds())
 
-                def prepare_files():
-                    files = []
-                    for i, output in enumerate(output_bytes_list):
-                        output.seek(0)
-                        file = discord.File(output, filename=f"txt2img_{author.id}_{i}.png")
-                        files.append(file)
-                    return files
+                # Prepare files and calculate total size
+                image_files = []
+                total_size = 0
+                for i, output in enumerate(output_bytes_list):
+                    output.seek(0)
+                    size = output.getbuffer().nbytes
+                    total_size += size
+                    file = discord.File(output, filename=f"txt2img_{author.id}_{i}.png")
+                    image_files.append(file)
 
-                files = await self.bot.loop.run_in_executor(None, prepare_files)
+                # Discord's total message size limit is ~25MB for attachments; split if needed
+                max_size = 25 * 1024 * 1024
+                if total_size > max_size:
+                    await wait_message.delete()
+                    chunks = []
+                    current_chunk = []
+                    current_size = 0
+                    for file in image_files:
+                        file_size = file.fp.getbuffer().nbytes
+                        if current_size + file_size > max_size:
+                            chunks.append(current_chunk)
+                            current_chunk = [file]
+                            current_size = file_size
+                        else:
+                            current_chunk.append(file)
+                            current_size += file_size
+                    if current_chunk:
+                        chunks.append(current_chunk)
+
+                    param_str = ", ".join(f"{k}: {v}" for k, v in params.items()) if params else "None"
+                    user_model = self.bot.user_model_preferences.get(author.id, DEFAULT_MODEL)
+                    content = (
+                        f"**Prompt:** `{prompt}`\n"
+                        f"**Negative Prompt:** `{negative_prompt if not params.get('noneg', 'false').lower() == 'true' else 'None'}`\n"
+                        f"**Parameters:** `{param_str}`\n"
+                        f"**Model:** `{user_model}`\n"
+                        f"**Time:** `{duration}`\n"
+                        f"{author.mention}, images split due to size. React with ✅ to approve, ❌ to delete, or 🔁 to regenerate."
+                    )
+                    sent_messages = []
+                    for chunk in chunks:
+                        msg = await channel.send(content if not sent_messages else "Continued...", files=chunk)
+                        sent_messages.append(msg)
+                        if not sent_messages[1:]:  # Only add reactions to first message
+                            reaction = await handle_reactions(self.bot, msg, author, content, chunk)
+                            if reaction == '✅':
+                                await msg.clear_reactions()
+                            elif reaction == '❌':
+                                for m in sent_messages:
+                                    await m.delete()
+                            elif reaction == '🔁':
+                                for m in sent_messages:
+                                    await m.delete()
+                                await self.handle_generation_request(channel, author, prompt, negative_prompt, params)
+                    return
+
+                # Single message case
                 param_str = ", ".join(f"{k}: {v}" for k, v in params.items()) if params else "None"
                 user_model = self.bot.user_model_preferences.get(author.id, DEFAULT_MODEL)
                 content = (
@@ -143,19 +172,9 @@ class Txt2ImgCog(commands.Cog):
                     f"**Time:** `{duration}`\n"
                     f"{author.mention}, react with ✅ to approve, ❌ to delete, or 🔁 to regenerate."
                 )
-                for attempt in range(3):
-                    try:
-                        await wait_message.delete()
-                        sent_message = await channel.send(content, files=files)
-                        logger.info(f"Uploaded {len(files)} images for {author} with prompt: '{prompt}'")
-                        break
-                    except (discord.errors.DiscordServerError, discord.errors.HTTPException) as e:
-                        logger.warning(f"Attempt {attempt + 1} failed to send message: {e}")
-                        if attempt < 2:
-                            await asyncio.sleep(2)
-                        else:
-                            raise
-                reaction = await handle_reactions(self.bot, sent_message, author, content, files, options=['✅', '❌', '🔁'])
+                await wait_message.delete()
+                sent_message = await channel.send(content, files=image_files)
+                reaction = await handle_reactions(self.bot, sent_message, author, content, image_files)
                 if reaction == '✅':
                     await sent_message.clear_reactions()
                 elif reaction == '❌':
@@ -164,18 +183,32 @@ class Txt2ImgCog(commands.Cog):
                     await sent_message.delete()
                     await self.handle_generation_request(channel, author, prompt, negative_prompt, params)
             else:
-                try:
-                    await wait_message.delete()
-                except discord.errors.NotFound:
-                    logger.debug("Wait message already deleted or not found")
-                await channel.send("Failed to generate image or timed out.")
-        except Exception as e:
-            logger.error(f"Generation error for {author}: {e}", exc_info=True)
-            try:
                 await wait_message.delete()
-            except discord.errors.NotFound:
-                logger.debug("Wait message already deleted or not found")
+                await channel.send("Failed to generate image or timed out.")
+        except asyncio.TimeoutError:
+            await wait_message.delete()
+            await channel.send("Generation took too long. Try again later.")
+        except discord.errors.HTTPException as e:
+            logger.error(f"Discord HTTP error: {e}")
+            await wait_message.delete()
+            await channel.send("Failed to upload images. They might be too large.")
+        except Exception as e:
+            logger.error(f"Generation error: {e}", exc_info=True)
+            await wait_message.delete()
             await channel.send(f"Error: {str(e)}. Please try again later.")
+
+    @commands.Cog.listener()
+    async def on_message(self, message):
+        if message.author == self.bot.user or not message.content.lower().startswith("draw "):
+            return
+        full_prompt_text = message.content[5:].strip()
+        if not full_prompt_text:
+            await message.channel.send("Please provide a prompt after 'draw'. Example: `draw a cat`")
+            return
+        positive_prompt, negative_prompt_user, params = parse_prompt(self.bot, full_prompt_text)
+        negative_prompt = negative_prompt_user if negative_prompt_user is not None else DEFAULT_NEGATIVE_PROMPT
+        logger.info(f"User {message.author} requested: prompt='{positive_prompt}', negative_prompt='{negative_prompt}', params={params}")
+        await self.handle_generation_request(message.channel, message.author, positive_prompt, negative_prompt, params)
 
 async def setup(bot):
     await bot.add_cog(Txt2ImgCog(bot))

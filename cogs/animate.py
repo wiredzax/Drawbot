@@ -86,7 +86,7 @@ class AnimateCog(commands.Cog):
 
     @commands.command(name="animate")
     async def animate(self, ctx, *, prompt: str):
-        logger.info(f"Animate command invoked by {ctx.author.id} with prompt: {prompt}")
+        logger.info(f"Animate command invoked by {ctx.author.id}: '{prompt}'")
         positive_prompt, negative_prompt_user, params = parse_prompt(self.bot, prompt)
         negative_prompt = negative_prompt_user if negative_prompt_user is not None else DEFAULT_NEGATIVE_PROMPT
         num_frames = min(int(params.get("frames", 5)), 10)

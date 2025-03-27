@@ -1,4 +1,3 @@
-#Bot26.py
 import discord
 from discord.ext import commands
 import os
@@ -21,7 +20,7 @@ class Bot(commands.Bot):
         intents = discord.Intents.default()
         intents.message_content = True
         intents.reactions = True
-        intents.members = True  # Add members intent
+        intents.members = True
         super().__init__(command_prefix="!", intents=intents)
         self.user_model_preferences = {}
         self.task_queue = asyncio.Queue()
@@ -55,43 +54,38 @@ class Bot(commands.Bot):
             conn.commit()
         logger.info(f"Database initialized at {self.db_path}")
 
-async def load_preferences(self):
-    try:
-        if os.path.exists(self.preferences_file):
-            async with aiofiles.open(self.preferences_file, 'r') as f:
-                self.user_model_preferences = {int(k): v for k, v in json.loads(await f.read()).items()}
-            logger.info(f"Loaded preferences from {self.preferences_file}")
-        else:
+    async def load_preferences(self):
+        try:
+            if os.path.exists(self.preferences_file):
+                async with aiofiles.open(self.preferences_file, 'r') as f:
+                    self.user_model_preferences = {int(k): v for k, v in json.loads(await f.read()).items()}
+                logger.info(f"Loaded preferences from {self.preferences_file}")
+            else:
+                self.user_model_preferences = {}
+        except Exception as e:
+            logger.error(f"Error loading preferences: {e}")
             self.user_model_preferences = {}
-    except Exception as e:
-        logger.error(f"Error loading preferences: {e}")
-        self.user_model_preferences = {}
 
-async def save_preferences(self):
-    try:
-        async with aiofiles.open(self.preferences_file, 'w') as f:
-            await f.write(json.dumps(self.user_model_preferences))
-        logger.debug("Saved preferences")
-    except Exception as e:
-        logger.error(f"Error saving preferences: {e}")
+    async def save_preferences(self):
+        try:
+            async with aiofiles.open(self.preferences_file, 'w') as f:
+                await f.write(json.dumps(self.user_model_preferences))
+            logger.debug("Saved preferences")
+        except Exception as e:
+            logger.error(f"Error saving preferences: {e}")
 
-async def process_queue(self):
-    while True:
-        if self.running_tasks < self.max_concurrent_tasks:
-            task = await self.task_queue.get()
-            self.running_tasks += 1
-            logger.debug(f"Processing task, queue size: {self.task_queue.qsize()}")
-            try:
-                await task()
-            finally:
-                self.running_tasks -= 1
-                self.task_queue.task_done()
-        await asyncio.sleep(0.1)
-
-bot = Bot()
-bot.load_preferences = load_preferences.__get__(bot, commands.Bot)
-bot.save_preferences = save_preferences.__get__(bot, commands.Bot)
-bot.process_queue = process_queue.__get__(bot, commands.Bot)
+    async def process_queue(self):
+        while True:
+            if self.running_tasks < self.max_concurrent_tasks:
+                task = await self.task_queue.get()
+                self.running_tasks += 1
+                logger.debug(f"Processing task, queue size: {self.task_queue.qsize()}")
+                try:
+                    await task()
+                finally:
+                    self.running_tasks -= 1
+                    self.task_queue.task_done()
+            await asyncio.sleep(0.1)
 
 async def load_cogs():
     for filename in os.listdir("cogs"):
@@ -99,7 +93,9 @@ async def load_cogs():
             await bot.load_extension(f"cogs.{filename[:-3]}")
             logger.info(f"Loaded cog: {filename[:-3]}")
 
-@bot.event
+bot = Bot()  # Instantiate bot first
+
+@bot.event  # Now bot is defined, so this works
 async def on_ready():
     bot.start_time = time.time()
     await bot.load_preferences()

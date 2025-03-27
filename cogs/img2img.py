@@ -12,7 +12,7 @@ from datetime import datetime, timedelta
 import asyncio
 import uuid
 import random
-from .utils import Cache, parse_prompt, validate_resolution, check_vram_usage, submit_comfyui_workflow, fetch_comfyui_outputs, monitor_vram_during_task, handle_reactions, PROMPT_PREFIX, DEFAULT_NEGATIVE_PROMPT, API_TIMEOUT, MAX_BATCH_SIZE, STATIC_WIDTH, STATIC_HEIGHT, MAX_IMAGE_DIMENSION, check_image_size, COMFYUI_API_URL
+from .utils import Cache, parse_prompt, check_vram_usage, submit_comfyui_workflow, fetch_comfyui_outputs, handle_reactions, PROMPT_PREFIX, DEFAULT_NEGATIVE_PROMPT, API_TIMEOUT, MAX_BATCH_SIZE, MAX_IMAGE_DIMENSION, check_image_size, COMFYUI_API_URL
 from config.default_model import DEFAULT_MODEL
 from config.available_models import AVAILABLE_MODELS
 
@@ -327,15 +327,60 @@ class Img2ImgCog(commands.Cog):
                 if stats_cog:
                     stats_cog.update_user_stats(guild_id, author.id, author.display_name, images=len(output_bytes_list), total_time=duration.total_seconds())
 
-                def prepare_files():
-                    files = []
-                    for i, output in enumerate(output_bytes_list):
-                        output.seek(0)
-                        file = discord.File(output, filename=f"img2img_{author.id}_{i}.png")
-                        files.append(file)
-                    return files
+                image_files = []
+                total_size = 0
+                for i, output in enumerate(output_bytes_list):
+                    output.seek(0)
+                    size = output.getbuffer().nbytes
+                    total_size += size
+                    file = discord.File(output, filename=f"img2img_{author.id}_{i}.png")
+                    image_files.append(file)
 
-                files = await self.bot.loop.run_in_executor(None, prepare_files)
+                max_size = 25 * 1024 * 1024
+                if total_size > max_size:
+                    await wait_message.delete()
+                    chunks = []
+                    current_chunk = []
+                    current_size = 0
+                    for file in image_files:
+                        file_size = file.fp.getbuffer().nbytes
+                        if current_size + file_size > max_size:
+                            chunks.append(current_chunk)
+                            current_chunk = [file]
+                            current_size = file_size
+                        else:
+                            current_chunk.append(file)
+                            current_size += file_size
+                    if current_chunk:
+                        chunks.append(current_chunk)
+
+                    param_str = ", ".join(f"{k}: {v}" for k, v in params.items()) if params else "None"
+                    user_model = self.bot.user_model_preferences.get(author.id, DEFAULT_MODEL)
+                    content = (
+                        f"**Img2Img Prompt:** `{prompt}`\n"
+                        f"**Negative Prompt:** `{negative_prompt if not params.get('noneg', 'false').lower() == 'true' else 'None'}`\n"
+                        f"**Parameters:** `{param_str}`\n"
+                        f"**Model:** `{user_model}`\n"
+                        f"**Time:** `{duration}`\n"
+                        f"{author.mention}, images split due to size. React with ✅ to approve, ❌ to delete, or 🔁 to regenerate."
+                    )
+                    sent_messages = []
+                    for chunk in chunks:
+                        msg = await channel.send(content if not sent_messages else "Continued...", files=chunk)
+                        sent_messages.append(msg)
+                        if not sent_messages[1:]:
+                            reaction = await handle_reactions(self.bot, msg, author, content, chunk)
+                            if reaction == '✅':
+                                await msg.clear_reactions()
+                            elif reaction == '❌':
+                                for m in sent_messages:
+                                    await m.delete()
+                            elif reaction == '🔁':
+                                for m in sent_messages:
+                                    await m.delete()
+                                await self.handle_generation_request(channel, author, prompt, negative_prompt, params, init_image_bytes)
+                    return
+
                 param_str = ", ".join(f"{k}: {v}" for k, v in params.items()) if params else "None"
                 user_model = self.bot.user_model_preferences.get(author.id, DEFAULT_MODEL)
                 content = (
@@ -347,8 +392,8 @@ class Img2ImgCog(commands.Cog):
                     f"{author.mention}, react with ✅ to approve, ❌ to delete, or 🔁 to regenerate."
                 )
                 await wait_message.delete()
-                sent_message = await channel.send(content, files=files)
-                reaction = await handle_reactions(self.bot, sent_message, author, content, files, options=['✅', '❌', '🔁'])
+                sent_message = await channel.send(content, files=image_files)
+                reaction = await handle_reactions(self.bot, sent_message, author, content, image_files)
                 if reaction == '✅':
                     await sent_message.clear_reactions()
                 elif reaction == '❌':
@@ -359,12 +404,19 @@ class Img2ImgCog(commands.Cog):
             else:
                 await wait_message.delete()
                 await channel.send("Failed to generate image or timed out.")
-        except Exception as e:
-            logger.error(f"Img2img error: {e}")
+        except asyncio.TimeoutError:
             await wait_message.delete()
-            await channel.send(f"Error: {str(e)}")
+            await channel.send("Generation took too long. Try again later.")
+        except discord.errors.HTTPException as e:
+            logger.error(f"Discord HTTP error: {e}")
+            await wait_message.delete()
+            await channel.send("Failed to upload images. They might be too large.")
+        except Exception as e:
+            logger.error(f"Img2img error: {e}", exc_info=True)
+            await wait_message.delete()
+            await channel.send(f"Error: {str(e)}. Please try again later.")
         finally:
-            init_image_bytes.seek(0)  # Reset position, caller responsible for closing
+            init_image_bytes.seek(0)  # Reset, caller closes
 
 async def setup(bot):
     await bot.add_cog(Img2ImgCog(bot))

@@ -1,25 +1,20 @@
-# cogs/depth.py
 import discord
 from discord.ext import commands
 import aiohttp
 import logging
-import os
-import yaml
+import uuid
 from io import BytesIO
 from typing import Optional, List, Tuple
 from datetime import datetime, timedelta
 import asyncio
-import uuid
-from .utils import Cache, parse_prompt, check_vram_usage, submit_comfyui_workflow, fetch_comfyui_outputs, monitor_vram_during_task, COMFYUI_API_URL
-from config.default_model import DEFAULT_MODEL  # Add this if needed
-from config.available_models import AVAILABLE_MODELS  # Add this if needed
+from .utils import Cache, parse_prompt, check_vram_usage, submit_comfyui_workflow, fetch_comfyui_outputs, COMFYUI_API_URL
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
 VALID_COLORIZE_METHODS = [
-    "Spectral", "terrain", "viridis", "plasma", "inferno", "magma", "cividis", 
-    "twilight", "rainbow", "gist_rainbow", "gist_ncar", "gist_earth", "turbo", 
+    "Spectral", "terrain", "viridis", "plasma", "inferno", "magma", "cividis",
+    "twilight", "rainbow", "gist_rainbow", "gist_ncar", "gist_earth", "turbo",
     "jet", "afmhot", "copper", "seismic", "hsv", "brg"
 ]
 DEFAULT_COLORIZE_METHOD = "Spectral"
@@ -66,7 +61,7 @@ class DepthCog(commands.Cog):
             logger.error(f"Error uploading image for depth map: {e}")
             return None, None
         finally:
-            init_image_bytes.seek(0)  # Reset for potential reuse
+            init_image_bytes.seek(0)  # Reset for reuse or closure
 
         async def task():
             prompt_id = await submit_comfyui_workflow(workflow)
@@ -77,7 +72,7 @@ class DepthCog(commands.Cog):
 
         self.bot.task_queue.put_nowait(task)
         try:
-            images = await asyncio.wait_for(task(), timeout=120)  # Assuming API_TIMEOUT from utils
+            images = await asyncio.wait_for(task(), timeout=120)
             if images:
                 return images, datetime.now() - start_time
             logger.warning("No images returned from depth map workflow.")

@@ -10,7 +10,7 @@ from typing import Optional, List, Tuple
 from datetime import datetime, timedelta
 import asyncio
 import uuid
-from .utils import check_vram_usage, submit_comfyui_workflow, fetch_comfyui_outputs, monitor_vram_during_task, WORKFLOWS_PATH, IMAGE_OUTPUT_PATH, COMFYUI_API_URL, AVAILABLE_MODELS
+from .utils import check_vram_usage, submit_comfyui_workflow, fetch_comfyui_outputs, monitor_vram_during_task, WORKFLOWS_PATH, COMFYUI_API_URL, AVAILABLE_MODELS
 from config.default_model import DEFAULT_MODEL  # Add this if needed
 from config.available_models import AVAILABLE_MODELS  # Add this if needed
 
